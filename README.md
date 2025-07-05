@@ -86,8 +86,6 @@ dashboard-energia-renovable/
 ### Visualizaciones Interactivas
 ![Gráficos Interactivos](assets/screenshots/charts-interactive.png)
 
-### Versión Móvil
-![Responsive Design](assets/screenshots/mobile-view.png)
 
 ## 📈 Principales Insights
 
