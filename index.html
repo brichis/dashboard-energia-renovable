@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard: Energía Renovable Global</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .chart-container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .chart-title {
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            color: #333;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            grid-column: 1 / -1;
+        }
+
+        .controls h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-group label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .filter-group select, .filter-group input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .filter-group select:focus, .filter-group input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: scale(1.05);
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-group {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        .interactive-hint {
+            background: #f0f8ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 10px 10px 0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🌱 Dashboard Global de Energía Renovable</h1>
+            <p>Explorando la transición energética mundial y su impacto en las emisiones de CO2</p>
+        </header>
+
+        <div class="interactive-hint">
+            💡 <strong>Dashboard Interactivo:</strong> Usa los filtros para explorar datos por región y período. Pasa el cursor sobre los gráficos para ver detalles específicos.
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value" id="total-renewable">28.5%</div>
+                <div class="metric-label">Participación Global de Renovables</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="co2-reduction">-15%</div>
+                <div class="metric-label">Reducción CO2 (2015-2023)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="leading-country">China</div>
+                <div class="metric-label">Líder en Capacidad</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="investment">$1.8T</div>
+                <div class="metric-label">Inversión Global Acumulada</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <h3>🎛️ Controles Interactivos</h3>
+            <div class="filter-group">
+                <label for="regionFilter">Región:</label>
+                <select id="regionFilter">
+                    <option value="all">Todas las Regiones</option>
+                    <option value="europe">Europa</option>
+                    <option value="asia">Asia</option>
+                    <option value="america">América</option>
+                    <option value="africa">África</option>
+                </select>
+
+                <label for="yearRange">Período:</label>
+                <input type="range" id="yearRange" min="2010" max="2023" value="2023" step="1">
+                <span id="yearDisplay">2023</span>
+
+                <label for="energyType">Tipo de Energía:</label>
+                <select id="energyType">
+                    <option value="all">Todas</option>
+                    <option value="solar">Solar</option>
+                    <option value="wind">Eólica</option>
+                    <option value="hydro">Hidroeléctrica</option>
+                    <option value="geothermal">Geotérmica</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="chart-container">
+                <h3 class="chart-title">📈 Evolución Temporal por Fuente</h3>
+                <canvas id="timeSeriesChart" width="400" height="300"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">🥇 Top 10 Países por Capacidad</h3>
+                <canvas id="countryChart" width="400" height="300"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">🌍 Distribución por Región</h3>
+                <canvas id="regionChart" width="400" height="300"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">⚡ Correlación Renovables vs CO2</h3>
+                <canvas id="correlationChart" width="400" height="300"></canvas>
+            </div>
+
+            <div class="chart-container full-width">
+                <h3 class="chart-title">📊 Matriz de Comparación Interactiva</h3>
+                <div id="heatmap"></div>
+            </div>
+        </div>
+
+        <div class="interactive-hint">
+            📱 <strong>Compatibilidad Móvil:</strong> Este dashboard se adapta automáticamente a diferentes tamaños de pantalla para una experiencia óptima en cualquier dispositivo.
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Variables globales para datos reales
+        let rawEnergyData = [];
+        let processedData = {};
+        let isDataLoaded = false;
+
+        // Función para cargar datos CSV reales
+        async function loadRealData() {
+            try {
+                console.log('Cargando datos reales...');
+                
+                // Opción 1: Usar datos de Our World in Data (descarga manual)
+                // Si tienes el CSV descargado, descomenta esta línea:
+                // const response = await fetch('./data/owid-energy-data.csv');
+                
+                // Opción 2: Usar datos desde GitHub (requiere CORS habilitado)
+                const response = await fetch('https://raw.githubusercontent.com/owid/energy-data/master/owid-energy-data.csv');
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar datos: ' + response.status);
+                }
+                
+                const csvText = await response.text();
+                console.log('CSV descargado, procesando...');
+                
+                // Procesar CSV
+                rawEnergyData = parseCSV(csvText);
+                processedData = processEnergyData(rawEnergyData);
+                isDataLoaded = true;
+                
+                console.log('Datos procesados correctamente:', processedData);
+                
+                // Actualizar dashboard con datos reales
+                updateDashboardWithRealData();
+                
+            } catch (error) {
+                console.error('Error cargando datos reales:', error);
+                console.log('Usando datos de ejemplo...');
+                // Fallback a datos simulados
+                loadFallbackData();
+            }
+        }
+
+        // Función para parsear CSV simple
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    const values = lines[i].split(',');
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = values[index] ? values[index].trim() : '';
+                    });
+                    data.push(row);
+                }
+            }
+            
+            return data;
+        }
+
+        // Función para procesar datos de energía
+        function processEnergyData(rawData) {
+            console.log('Procesando', rawData.length, 'filas de datos...');
+            
+            // Filtrar datos recientes (2010-2023) y países principales
+            const recentData = rawData.filter(row => {
+                const year = parseInt(row.year);
+                return year >= 2010 && year <= 2023 && row.country && row.renewables_consumption;
+            });
+
+            // Procesar países principales para 2023
+            const countries2023 = recentData
+                .filter(row => parseInt(row.year) === 2023 && row.renewables_consumption)
+                .map(row => ({
+                    name: row.country,
+                    renewable: parseFloat(row.renewables_consumption) || 0,
+                    total: parseFloat(row.primary_energy_consumption) || 1,
+                    renewableShare: parseFloat(row.renewables_share_energy) || 0,
+                    co2: parseFloat(row.co2) || 0,
+                    region: getRegion(row.country)
+                }))
+                .filter(country => country.renewable > 10) // Solo países con >10 TWh
+                .sort((a, b) => b.renewable - a.renewable)
+                .slice(0, 15);
+
+            // Serie temporal global
+            const timeSeries = {};
+            const years = [];
+            for (let year = 2010; year <= 2023; year++) {
+                years.push(year);
+                
+                const yearData = recentData.filter(row => parseInt(row.year) === year);
+                
+                timeSeries[year] = {
+                    solar: sumByField(yearData, 'solar_consumption'),
+                    wind: sumByField(yearData, 'wind_consumption'),
+                    hydro: sumByField(yearData, 'hydro_consumption'),
+                    other: sumByField(yearData, 'other_renewables_consumption')
+                };
+            }
+
+            // Datos por región
+            const regions = calculateRegionalData(recentData.filter(row => parseInt(row.year) === 2023));
+
+            return {
+                countries: countries2023,
+                timeSeries: {
+                    years: years,
+                    solar: years.map(year => timeSeries[year].solar),
+                    wind: years.map(year => timeSeries[year].wind),
+                    hydro: years.map(year => timeSeries[year].hydro),
+                    other: years.map(year => timeSeries[year].other)
+                },
+                regions: regions
+            };
+        }
+
+        // Función auxiliar para sumar campos
+        function sumByField(data, field) {
+            return data.reduce((sum, row) => {
+                const value = parseFloat(row[field]) || 0;
+                return sum + value;
+            }, 0);
+        }
+
+        // Función para determinar región de un país
+        function getRegion(country) {
+            const europeCountries = ['Germany', 'United Kingdom', 'France', 'Italy', 'Spain', 'Netherlands', 'Poland', 'Sweden', 'Norway', 'Denmark'];
+            const asiaCountries = ['China', 'India', 'Japan', 'South Korea', 'Indonesia', 'Thailand', 'Malaysia', 'Vietnam'];
+            const americaCountries = ['United States', 'Brazil', 'Canada', 'Mexico', 'Argentina', 'Chile', 'Colombia'];
+            const africaCountries = ['South Africa', 'Egypt', 'Morocco', 'Algeria', 'Nigeria', 'Kenya'];
+
+            if (europeCountries.some(c => country.includes(c))) return 'europe';
+            if (asiaCountries.some(c => country.includes(c))) return 'asia';
+            if (americaCountries.some(c => country.includes(c))) return 'america';
+            if (africaCountries.some(c => country.includes(c))) return 'africa';
+            return 'other';
+        }
+
+        // Función para calcular datos regionales
+        function calculateRegionalData(data2023) {
+            const regions = {};
+            
+            data2023.forEach(row => {
+                const region = getRegion(row.country);
+                if (region !== 'other') {
+                    if (!regions[region]) {
+                        regions[region] = { renewable: 0, total: 0 };
+                    }
+                    regions[region].renewable += parseFloat(row.renewables_consumption) || 0;
+                    regions[region].total += parseFloat(row.primary_energy_consumption) || 0;
+                }
+            });
+
+            // Calcular porcentajes
+            Object.keys(regions).forEach(region => {
+                regions[region].percentage = (regions[region].renewable / regions[region].total * 100).toFixed(1);
+            });
+
+            return regions;
+        }
+
+        // Función fallback con datos simulados
+        function loadFallbackData() {
+            processedData = {
+                countries: [
+                    { name: 'China', renewable: 935.0, total: 2040.0, region: 'asia', co2: 10.9 },
+                    { name: 'Estados Unidos', renewable: 288.0, total: 1060.0, region: 'america', co2: 5.4 },
+                    { name: 'Brasil', renewable: 150.0, total: 181.0, region: 'america', co2: 2.3 },
+                    { name: 'India', renewable: 134.0, total: 390.0, region: 'asia', co2: 2.7 },
+                    { name: 'Alemania', renewable: 132.0, total: 218.0, region: 'europe', co2: 0.8 },
+                    { name: 'Japón', renewable: 91.0, total: 293.0, region: 'asia', co2: 1.2 },
+                    { name: 'Reino Unido', renewable: 48.0, total: 75.0, region: 'europe', co2: 0.4 },
+                    { name: 'Francia', renewable: 56.0, total: 130.0, region: 'europe', co2: 0.4 },
+                    { name: 'Italia', renewable: 51.0, total: 113.0, region: 'europe', co2: 0.4 },
+                    { name: 'España', renewable: 59.0, total: 106.0, region: 'europe', co2: 0.3 }
+                ],
+                timeSeries: {
+                    years: [2010, 2012, 2014, 2016, 2018, 2020, 2022, 2023],
+                    solar: [40, 75, 135, 220, 400, 580, 720, 850],
+                    wind: [180, 240, 320, 420, 540, 680, 810, 920],
+                    hydro: [1200, 1220, 1240, 1260, 1280, 1300, 1320, 1340],
+                    other: [12, 13, 14, 15, 16, 17, 18, 19]
+                },
+                regions: {
+                    asia: { renewable: 1160, total: 2723, percentage: 42.6 },
+                    europe: { renewable: 346, total: 642, percentage: 53.9 },
+                    america: { renewable: 438, total: 1241, percentage: 35.3 },
+                    africa: { renewable: 45, total: 165, percentage: 27.3 }
+                }
+            };
+            isDataLoaded = true;
+            updateDashboardWithRealData();
+        }
+
+        // Configuración de colores
+        const colors = {
+            solar: '#FFD700',
+            wind: '#87CEEB',
+            hydro: '#4169E1',
+            other: '#DC143C',
+            primary: '#667eea',
+            secondary: '#764ba2'
+        };
+
+        // Variables para los gráficos
+        let timeSeriesChart, countryChart, regionChart, correlationChart;
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mostrar indicador de carga
+            showLoadingIndicator();
+            
+            // Cargar datos reales
+            loadRealData();
+            
+            setupEventListeners();
+            updateYearDisplay();
+        });
+
+        // Función para mostrar indicador de carga
+        function showLoadingIndicator() {
+            const containers = document.querySelectorAll('.chart-container canvas, #heatmap');
+            containers.forEach(container => {
+                container.innerHTML = '<div style="text-align: center; padding: 50px;">📊 Cargando datos reales...</div>';
+            });
+        }
+
+        // Función para actualizar dashboard con datos reales
+        function updateDashboardWithRealData() {
+            console.log('Actualizando dashboard con datos reales...');
+            
+            // Actualizar métricas principales
+            updateMainMetrics();
+            
+            // Inicializar gráficos con datos reales
+            initializeCharts();
+        }
+
+        // Función para actualizar métricas principales
+        function updateMainMetrics() {
+            if (!isDataLoaded || !processedData.countries) return;
+            
+            // Calcular métricas globales
+            const totalRenewable = processedData.countries.reduce((sum, c) => sum + c.renewable, 0);
+            const totalEnergy = processedData.countries.reduce((sum, c) => sum + c.total, 0);
+            const globalShare = (totalRenewable / totalEnergy * 100).toFixed(1);
+            
+            const leadingCountry = processedData.countries[0]?.name || 'China';
+            
+            // Actualizar elementos del DOM
+            document.getElementById('total-renewable').textContent = globalShare + '%';
+            document.getElementById('leading-country').textContent = leadingCountry;
+            document.getElementById('co2-reduction').textContent = '-12%'; // Simulado
+            document.getElementById('investment').textContent = '$1.8T'; // Simulado
+        }
+
+        function setupEventListeners() {
+            document.getElementById('regionFilter').addEventListener('change', updateCharts);
+            document.getElementById('yearRange').addEventListener('input', updateYearDisplay);
+            document.getElementById('yearRange').addEventListener('change', updateCharts);
+            document.getElementById('energyType').addEventListener('change', updateCharts);
+        }
+
+        function updateYearDisplay() {
+            const year = document.getElementById('yearRange').value;
+            document.getElementById('yearDisplay').textContent = year;
+        }
+
+        function initializeCharts() {
+            createTimeSeriesChart();
+            createCountryChart();
+            createRegionChart();
+            createCorrelationChart();
+            createHeatmap();
+        }
+
+        function createTimeSeriesChart() {
+            if (!isDataLoaded) return;
+            
+            const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+            timeSeriesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: processedData.timeSeries.years,
+                    datasets: [
+                        {
+                            label: 'Solar',
+                            data: processedData.timeSeries.solar,
+                            borderColor: colors.solar,
+                            backgroundColor: colors.solar + '20',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Eólica',
+                            data: processedData.timeSeries.wind,
+                            borderColor: colors.wind,
+                            backgroundColor: colors.wind + '20',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Hidroeléctrica',
+                            data: processedData.timeSeries.hydro,
+                            borderColor: colors.hydro,
+                            backgroundColor: colors.hydro + '20',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Otras Renovables',
+                            data: processedData.timeSeries.other,
+                            borderColor: colors.other,
+                            backgroundColor: colors.other + '20',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toFixed(1)} TWh`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Consumo (TWh)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Año'
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        function createCountryChart() {
+            if (!isDataLoaded) return;
+            
+            const ctx = document.getElementById('countryChart').getContext('2d');
+            const topCountries = processedData.countries.slice(0, 10);
+            
+            countryChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topCountries.map(c => c.name),
+                    datasets: [{
+                        label: 'Consumo Renovable (TWh)',
+                        data: topCountries.map(c => c.renewable),
+                        backgroundColor: colors.primary + '80',
+                        borderColor: colors.primary,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const country = topCountries[context.dataIndex];
+                                    const percentage = (country.renewable / country.total * 100).toFixed(1);
+                                    return `${country.name}: ${context.parsed.y.toFixed(1)} TWh (${percentage}% del total)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Consumo (TWh)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createRegionChart() {
+            if (!isDataLoaded) return;
+            
+            const ctx = document.getElementById('regionChart').getContext('2d');
+            const regions = Object.keys(processedData.regions);
+            
+            regionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: regions.map(r => r.charAt(0).toUpperCase() + r.slice(1)),
+                    datasets: [{
+                        data: regions.map(r => processedData.regions[r].renewable),
+                        backgroundColor: [
+                            colors.solar,
+                            colors.wind,
+                            colors.hydro,
+                            colors.other
+                        ],
+                        borderWidth: 3,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const region = Object.values(processedData.regions)[context.dataIndex];
+                                    return `${context.label}: ${context.parsed.toFixed(1)} TWh (${region.percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createCorrelationChart() {
+            if (!isDataLoaded) return;
+            
+            const ctx = document.getElementById('correlationChart').getContext('2d');
+            
+            correlationChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Países',
+                        data: processedData.countries.map(c => ({
+                            x: (c.renewable / c.total) * 100,
+                            y: c.co2
+                        })),
+                        backgroundColor: colors.primary + '60',
+                        borderColor: colors.primary,
+                        borderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const country = processedData.countries[context.dataIndex];
+                                    return `${country.name}: ${context.parsed.x.toFixed(1)}% renovable, ${context.parsed.y.toFixed(1)} Gt CO2`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '% Energía Renovable'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Emisiones CO2 (Gt)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createHeatmap() {
+            if (!isDataLoaded) return;
+            
+            const container = document.getElementById('heatmap');
+            container.innerHTML = '';
+            
+            // Crear tabla de datos para el heatmap
+            const table = document.createElement('table');
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            
+            // Encabezados
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = '<th>País</th><th>Renovables (TWh)</th><th>Total (TWh)</th><th>% Renovable</th><th>CO2 (Gt)</th><th>Región</th>';
+            table.appendChild(headerRow);
+            
+            // Datos
+            processedData.countries.slice(0, 8).forEach(country => {
+                const row = document.createElement('tr');
+                const renewablePercent = (country.renewable / country.total * 100).toFixed(1);
+                
+                row.innerHTML = `
+                    <td style="font-weight: bold; padding: 8px; border: 1px solid #ddd;">${country.name}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; background: linear-gradient(90deg, ${colors.primary}${Math.floor(country.renewable/50)}0, transparent ${Math.min(country.renewable/20, 100)}%)">${country.renewable.toFixed(1)} TWh</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${country.total.toFixed(1)} TWh</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; background: linear-gradient(90deg, ${colors.solar}${Math.floor(renewablePercent/5)}0, transparent ${renewablePercent}%)">${renewablePercent}%</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${country.co2.toFixed(1)} Gt</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-transform: capitalize;">${country.region}</td>
+                `;
+                table.appendChild(row);
+            });
+            
+            container.appendChild(table);
+        }
+
+        function updateCharts() {
+            if (!isDataLoaded) return;
+            
+            console.log('Actualizando gráficos con filtros aplicados...');
+            
+            const region = document.getElementById('regionFilter').value;
+            const year = document.getElementById('yearRange').value;
+            const energyType = document.getElementById('energyType').value;
+            
+            // Filtrar datos según selecciones
+            let filteredCountries = processedData.countries;
+            
+            if (region !== 'all') {
+                filteredCountries = filteredCountries.filter(c => c.region === region);
+                console.log(`Filtrando por región: ${region}, ${filteredCountries.length} países`);
+            }
+            
+            // Actualizar gráfico de países
+            if (countryChart) {
+                const topFiltered = filteredCountries.slice(0, 10);
+                countryChart.data.labels = topFiltered.map(c => c.name);
+                countryChart.data.datasets[0].data = topFiltered.map(c => c.renewable);
+                countryChart.update();
+            }
+            
+            // Actualizar indicadores
+            updateMetrics(region, year);
+        }
+
+        function updateMetrics(region, year) {
+            if (!isDataLoaded) return;
+            
+            let filteredData = processedData.countries;
+            
+            if (region !== 'all') {
+                filteredData = filteredData.filter(c => c.region === region);
+            }
+            
+            if (filteredData.length > 0) {
+                // Calcular métricas para la región filtrada
+                const totalRenewable = filteredData.reduce((sum, c) => sum + c.renewable, 0);
+                const totalEnergy = filteredData.reduce((sum, c) => sum + c.total, 0);
+                const renewablePercent = (totalRenewable / totalEnergy * 100).toFixed(1);
+                const leader = filteredData[0]?.name || 'N/A';
+                
+                document.getElementById('total-renewable').textContent = renewablePercent + '%';
+                document.getElementById('leading-country').textContent = leader;
+                
+                // Simular datos de inversión por región
+                const regionInvestment = {
+                    'europe': '$0.5T',
+                    'asia': '$0.8T', 
+                    'america': '$0.4T',
+                    'africa': '$0.1T',
+                    'all': '$1.8T'
+                };
+                
+                document.getElementById('investment').textContent = regionInvestment[region] || '$1.8T';
+            }
+        }
+
+        // Funcionalidad de tooltip
+        document.addEventListener('mousemove', function(e) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = e.pageX + 10 + 'px';
+            tooltip.style.top = e.pageY + 10 + 'px';
+        });
+    </script>
+</body>
+</html>
