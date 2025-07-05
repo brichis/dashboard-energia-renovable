@@ -312,12 +312,7 @@
             try {
                 console.log('Cargando datos reales...');
                 
-                // Opción 1: Usar datos de Our World in Data (descarga manual)
-                // Si tienes el CSV descargado, descomenta esta línea:
-                // const response = await fetch('./data/owid-energy-data.csv');
-                
-                // Opción 2: Usar datos desde GitHub (requiere CORS habilitado)
-                const response = await fetch('https://raw.githubusercontent.com/owid/energy-data/master/owid-energy-data.csv');
+                const response = await fetch('./data/owid-energy-data.csv');
                 
                 if (!response.ok) {
                     throw new Error('Error al cargar datos: ' + response.status);
